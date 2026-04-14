@@ -102,13 +102,13 @@ Before creating a PR, adding a skill, or preparing any contribution, you MUST re
 Run commands directly — don't tell the user to run them.
 
 ```bash
-npm run dev          # Host with hot reload
-npm run build        # Compile host TypeScript (src/)
-./container/build.sh # Rebuild agent container image (nanoclaw-agent:latest)
-npm test             # Host tests
+pnpm run dev          # Host with hot reload
+pnpm run build        # Compile host TypeScript (src/)
+./container/build.sh  # Rebuild agent container image (nanoclaw-agent:latest)
+pnpm test             # Host tests
 ```
 
-Container typecheck is a separate tsconfig — if you edit `container/agent-runner/src/`, run `npx tsc -p container/agent-runner/tsconfig.json --noEmit` to check it.
+Container typecheck is a separate tsconfig — if you edit `container/agent-runner/src/`, run `pnpm exec tsc -p container/agent-runner/tsconfig.json --noEmit` to check it.
 
 Service management:
 ```bash

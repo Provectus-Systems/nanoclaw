@@ -98,7 +98,7 @@ Standard Markdown works: `**bold**`, `*italic*`, `[links](url)`, `# headings`.
 
 ## Installing Packages & Tools
 
-Your container is ephemeral — anything installed via `apt-get` or `npm install -g` is lost on restart. To install packages that persist, use the self-modification tools:
+Your container is ephemeral — anything installed via `apt-get` or `pnpm install -g` is lost on restart. To install packages that persist, use the self-modification tools:
 
 1. **`install_packages`** — request system (apt) or global npm packages. Requires admin approval.
 2. **`request_rebuild`** — rebuild your container image so approved packages are baked in. Always call this after `install_packages` to apply the changes.
@@ -111,16 +111,16 @@ request_rebuild({ reason: "Apply ffmpeg + transformers" })
 # → Admin approves → image rebuilt with the packages
 ```
 
-**When to use this vs workspace npm install:**
-- `npm install` in `/workspace/agent/` persists on disk (it's mounted) but isn't on the global PATH — use it for project-level dependencies
+**When to use this vs workspace pnpm install:**
+- `pnpm install` in `/workspace/agent/` persists on disk (it's mounted) but isn't on the global PATH — use it for project-level dependencies
 - `install_packages` is for system tools (ffmpeg, imagemagick) and global npm packages that need to be on PATH
 
 ### MCP Servers
 
-Use **`add_mcp_server`** to add an MCP server to your configuration, then **`request_rebuild`** to apply. Browse available servers at https://mcp.so — it's a curated directory of high-quality MCP servers. Most Node.js servers run via `npx`, e.g.:
+Use **`add_mcp_server`** to add an MCP server to your configuration, then **`request_rebuild`** to apply. Browse available servers at https://mcp.so — it's a curated directory of high-quality MCP servers. Most Node.js servers run via `pnpm dlx`, e.g.:
 
 ```
-add_mcp_server({ name: "memory", command: "npx", args: ["@modelcontextprotocol/server-memory"] })
+add_mcp_server({ name: "memory", command: "pnpm", args: ["dlx", "@modelcontextprotocol/server-memory"] })
 request_rebuild({ reason: "Add memory MCP server" })
 ```
 
