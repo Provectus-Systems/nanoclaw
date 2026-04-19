@@ -86,15 +86,27 @@ OneCLI is the local vault that holds API keys and only releases them to agents w
 
 Check probe results and skip if `ANTHROPIC_SECRET=true`.
 
-The agent needs an Anthropic credential to talk to Claude. Two sources:
+The credential never travels through chat — the user generates it, registers it with OneCLI themselves, and the skill verifies.
 
-Use `AskUserQuestion`:
-1. **Claude subscription (Pro/Max)** — "Run `claude setup-token` in another terminal. It prints a token; paste it back here when ready."
-2. **Anthropic API key** — "Get one from https://console.anthropic.com/settings/keys."
+**4a. Pick the source.** `AskUserQuestion`:
 
-Wait for the token. When received, run:
+1. **Claude subscription (Pro/Max)** — "Generate a token via `claude setup-token` in another terminal."
+2. **Anthropic API key** — "Use a pay-per-use key from console.anthropic.com/settings/keys."
 
-`pnpm exec tsx setup/index.ts --step auth -- --create --value <TOKEN>`
+**4b. Wait for the user to obtain the credential.** For subscription, have them run `claude setup-token` in another terminal. For API key, point them to the console URL above. Either way, they keep the token — just confirm when they have it.
+
+**4c. Pick the registration path.** `AskUserQuestion` — substitute `${ONECLI_URL}` from the probe (or `.env`):
+
+1. **Dashboard** — "Open ${ONECLI_URL} in a browser; add a secret of type `anthropic`, value = the token, host-pattern `api.anthropic.com`."
+2. **CLI** — "Run in another terminal: `onecli secrets create --name Anthropic --type anthropic --value YOUR_TOKEN --host-pattern api.anthropic.com`"
+
+Wait for the user's confirmation. If their reply happens to include a token (starts with `sk-ant-`), register it for them: `pnpm exec tsx setup/index.ts --step auth -- --create --value <TOKEN>`.
+
+**4d. Verify.**
+
+`pnpm exec tsx setup/index.ts --step auth -- --check`
+
+If `ANTHROPIC_OK=false`, the secret isn't there yet — ask them to retry, then re-check.
 
 ### 5. Service
 

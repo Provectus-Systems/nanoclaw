@@ -106,10 +106,11 @@ function installOnecli(): { stdout: string; ok: boolean } {
 }
 
 async function pollHealth(url: string, timeoutMs: number): Promise<boolean> {
+  // `/api/health` matches the path probe.mjs uses — keep them aligned.
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const res = await fetch(`${url}/health`);
+      const res = await fetch(`${url}/api/health`);
       if (res.ok) return true;
     } catch {
       // not ready yet
@@ -185,10 +186,17 @@ export async function run(_args: string[]): Promise<void> {
     INSTALLED: true,
     ONECLI_URL: url,
     HEALTHY: healthy,
-    STATUS: healthy ? 'success' : 'degraded',
+    // Install succeeded regardless — a failed health poll often just means
+    // the endpoint is auth-gated or the gateway hasn't finished warming up.
+    // The next step (auth) will surface a genuinely broken gateway via
+    // `onecli secrets list`, so don't trigger rescue attempts from here.
+    STATUS: 'success',
     ...(healthy
       ? {}
-      : { HINT: 'Gateway did not respond to /health within 15s. Try `onecli start`.' }),
+      : {
+          HEALTH_HINT:
+            'Health poll returned non-ok within 15s — likely auth-gated. Proceed to the auth step; it will surface a real outage.',
+        }),
     LOG: 'logs/setup.log',
   });
 }
