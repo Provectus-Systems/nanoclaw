@@ -68,11 +68,16 @@ export function resolveClaudeImports(content: string, baseDir: string, seen: Set
 }
 
 function readAgentAndGlobalClaudeMd(): string | undefined {
+  // Per-group CLAUDE.md is responsible for pulling in the global instructions
+  // if the group wants them (the default scaffold starts with
+  // `@./.claude-global.md` which resolveClaudeImports inlines). Appending
+  // `/workspace/global/CLAUDE.md` explicitly here would double-inline the
+  // global content for any non-main group, wasting context tokens and
+  // risking contradictory instructions. Groups that don't import global
+  // intentionally don't get it — same as Claude-backed agents.
   const groupDir = '/workspace/agent';
   const groupPath = `${groupDir}/CLAUDE.md`;
   const localPath = `${groupDir}/CLAUDE.local.md`;
-  const globalDir = '/workspace/global';
-  const globalPath = `${globalDir}/CLAUDE.md`;
   const parts: string[] = [];
 
   if (fs.existsSync(groupPath)) {
@@ -80,10 +85,6 @@ function readAgentAndGlobalClaudeMd(): string | undefined {
   }
   if (fs.existsSync(localPath)) {
     parts.push(resolveClaudeImports(fs.readFileSync(localPath, 'utf-8'), groupDir));
-  }
-  const isMain = process.env.NANOCLAW_IS_MAIN === '1';
-  if (!isMain && fs.existsSync(globalPath)) {
-    parts.push(resolveClaudeImports(fs.readFileSync(globalPath, 'utf-8'), globalDir));
   }
 
   return parts.length > 0 ? parts.join('\n\n---\n\n') : undefined;
