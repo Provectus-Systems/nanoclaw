@@ -36,7 +36,15 @@ import { runWhatsAppChannel } from './channels/whatsapp.js';
 import { pingCliAgent, type PingResult } from './lib/agent-ping.js';
 import { brightSelect } from './lib/bright-select.js';
 import { offerClaudeAssist } from './lib/claude-assist.js';
+import {
+  applyToEnv,
+  parseFlags,
+  printHelp,
+  readFromEnv,
+} from './lib/setup-config-parse.js';
+import { runAdvancedScreen } from './lib/setup-config-screen.js';
 import { runWindowedStep } from './lib/windowed-runner.js';
+import { pollHealth } from './onecli.js';
 import { getLaunchdLabel, getSystemdUnit } from '../src/install-slug.js';
 import { pollHealth } from './onecli.js';
 import { claudeCliAvailable, resolveTimezoneViaClaude } from './lib/tz-from-claude.js';
@@ -52,9 +60,44 @@ const RUN_START = Date.now();
 type ChannelChoice = 'telegram' | 'discord' | 'whatsapp' | 'signal' | 'teams' | 'slack' | 'imessage' | 'skip';
 
 async function main(): Promise<void> {
+  // Parse CLI flags first — `--help` short-circuits before we render anything,
+  // and flag values get folded into process.env so existing step code reading
+  // NANOCLAW_* sees them unchanged.
+  const flagResult = parseFlags(process.argv.slice(2));
+  if (flagResult.help) {
+    printHelp();
+    process.exit(0);
+  }
+  if (flagResult.errors.length > 0) {
+    for (const err of flagResult.errors) console.error(`error: ${err}`);
+    console.error('');
+    console.error('Run with --help for the full list of supported flags.');
+    process.exit(1);
+  }
+  let configValues = { ...readFromEnv(), ...flagResult.values };
+  applyToEnv(configValues);
+
   printIntro();
   initProgressionLog();
   phEmit('auto_started');
+
+  // Welcome menu — default path or open advanced overrides before any setup
+  // work begins. Default lands on standard so Enter is the happy path.
+  const startChoice = ensureAnswer(
+    await brightSelect<'default' | 'advanced'>({
+      message: 'How would you like to begin?',
+      options: [
+        { value: 'default', label: 'Standard setup' },
+        { value: 'advanced', label: 'Advanced', hint: 'override defaults' },
+      ],
+      initialValue: 'default',
+    }),
+  ) as 'default' | 'advanced';
+  setupLog.userInput('start_choice', startChoice);
+  if (startChoice === 'advanced') {
+    configValues = await runAdvancedScreen(configValues);
+    applyToEnv(configValues);
+  }
 
   const skip = new Set(
     (process.env.NANOCLAW_SKIP ?? '')
@@ -123,108 +166,95 @@ async function main(): Promise<void> {
       ),
     );
 
-    type OnecliChoice = 'reuse' | 'fresh' | 'remote';
+    const remoteHost = process.env.NANOCLAW_ONECLI_API_HOST?.trim();
 
-    const existing = detectExistingOnecli();
-    const onecliOptions: { value: OnecliChoice; label: string; hint?: string }[] = [
-      ...(existing
-        ? [
-            {
-              value: 'reuse' as OnecliChoice,
-              label: 'Use the existing instance on the same host',
-              hint: 'recommended — keeps other apps bound to this vault working',
-            },
-          ]
-        : []),
-      {
-        value: 'fresh',
-        label: 'Install a fresh instance for NanoClaw',
-        hint: existing ? 'reinstalls onecli; other apps may need to reconnect' : 'recommended',
-      },
-      {
-        value: 'remote',
-        label: 'Connect to an OneCLI on another host',
-        hint: 'point to a remote URL',
-      },
-    ];
-
-    const onecliChoice = ensureAnswer(
-      await brightSelect<OnecliChoice>({
-        message: existing
-          ? `Found an existing OneCLI at ${existing.apiHost}. What would you like to do?`
-          : 'How would you like to set up OneCLI?',
-        options: onecliOptions,
-      }),
-    ) as OnecliChoice;
-    setupLog.userInput('onecli_choice', onecliChoice);
-
-    let remoteUrl: string | undefined;
-    if (onecliChoice === 'remote') {
-      while (true) {
-        const answer = ensureAnswer(
-          await p.text({
-            message: 'OneCLI URL on the remote machine',
-            placeholder: 'http://192.168.1.10:10254',
-            validate: (v) => {
-              const t = (v ?? '').trim();
-              if (!t) return 'Required';
-              if (!/^https?:\/\//i.test(t)) return 'Must start with http:// or https://';
-              return undefined;
-            },
-          }),
+    if (remoteHost) {
+      // Advanced-settings override: user has already named a remote vault,
+      // so skip the local-vs-fresh prompt entirely. Health-check it here
+      // rather than letting the step fail silently — a typo in the URL is a
+      // common mistake and the answer is human-fixable.
+      const s = p.spinner();
+      s.start(`Checking remote OneCLI at ${remoteHost}…`);
+      const healthy = await pollHealth(remoteHost, 5000);
+      if (!healthy) {
+        s.stop(`Couldn't reach OneCLI at ${remoteHost}.`, 1);
+        await fail(
+          'onecli',
+          `Couldn't reach OneCLI at ${remoteHost}.`,
+          'Check the URL and that OneCLI is running on the remote machine, then retry.',
         );
-        remoteUrl = (answer as string).trim();
-        setupLog.userInput('onecli_remote_url', remoteUrl);
-
-        const s = p.spinner();
-        s.start('Checking remote OneCLI…');
-        const healthy = await pollHealth(remoteUrl, 5000);
-        if (healthy) {
-          s.stop('Remote OneCLI is reachable.');
-          break;
-        }
-        s.stop(`Couldn't reach OneCLI at ${remoteUrl}.`, 1);
-        p.log.warn(wrapForGutter('Make sure OneCLI is running and accessible from this machine, then try again.', 4));
       }
-    }
+      s.stop('Remote OneCLI is reachable.');
 
-    const stepArgs =
-      onecliChoice === 'reuse' ? ['--reuse'] : onecliChoice === 'remote' ? ['--remote-url', remoteUrl!] : [];
-
-    const res = await runQuietStep(
-      'onecli',
-      {
-        running:
-          onecliChoice === 'reuse'
-            ? 'Hooking up to your existing OneCLI…'
-            : onecliChoice === 'remote'
-              ? `Connecting to remote OneCLI at ${remoteUrl}…`
-              : "Setting up OneCLI, your agent's vault…",
-        done: 'OneCLI vault ready.',
-      },
-      stepArgs,
-    );
-    if (!res.ok) {
-      const err = res.terminal?.fields.ERROR;
-      if (onecliChoice === 'remote') {
+      const res = await runQuietStep(
+        'onecli',
+        {
+          running: `Connecting to remote OneCLI at ${remoteHost}…`,
+          done: 'OneCLI vault ready.',
+        },
+        ['--remote-url', remoteHost],
+      );
+      if (!res.ok) {
+        const err = res.terminal?.fields.ERROR;
         await fail(
           'onecli',
           `Couldn't connect to remote OneCLI (${err ?? 'unknown error'}).`,
           'Check the URL and that OneCLI is running on the remote machine, then retry.',
         );
       }
-      if (err === 'onecli_not_on_path_after_install') {
+    } else {
+      // Respect an existing OneCLI install. Re-running the installer would
+      // rebind the listener and knock any other app using that gateway
+      // offline — confirm with the user before doing that.
+      const existing = detectExistingOnecli();
+      let reuse = false;
+      if (existing) {
+        const choice = ensureAnswer(
+          await brightSelect({
+            message: `Found an existing OneCLI at ${existing.apiHost}. What would you like to do?`,
+            options: [
+              {
+                value: 'reuse',
+                label: 'Use the existing instance',
+                hint: 'recommended — keeps other apps bound to this vault working',
+              },
+              {
+                value: 'fresh',
+                label: 'Install a fresh instance for NanoClaw',
+                hint: 'reinstalls onecli; other apps may need to reconnect',
+              },
+            ],
+          }),
+        ) as 'reuse' | 'fresh';
+        setupLog.userInput('onecli_choice', choice);
+        reuse = choice === 'reuse';
+      }
+
+      const res = await runQuietStep(
+        'onecli',
+        {
+          running: reuse
+            ? 'Hooking up to your existing OneCLI…'
+            : "Setting up OneCLI, your agent's vault…",
+          done: 'OneCLI vault ready.',
+        },
+        reuse ? ['--reuse'] : [],
+      );
+      if (!res.ok) {
+        const err = res.terminal?.fields.ERROR;
+        if (err === 'onecli_not_on_path_after_install') {
+          await fail(
+            'onecli',
+            'OneCLI was installed but your shell needs to refresh to see it.',
+            'Open a new shell or run `export PATH="$HOME/.local/bin:$PATH"`, then retry.',
+          );
+        }
         await fail(
           'onecli',
-          'OneCLI was installed but your shell needs to refresh to see it.',
-          'Open a new shell or run `export PATH="$HOME/.local/bin:$PATH"`, then retry.',
+          `Couldn't set up OneCLI (${err ?? 'unknown error'}).`,
+          'Make sure curl is installed and ~/.local/bin is writable, then retry.',
         );
       }
-      await fail(
-        'onecli',
-        `Couldn't set up OneCLI (${err ?? 'unknown error'}).`,
-        'Make sure curl is installed and ~/.local/bin is writable, then retry.',
-      );
     }
   }
 
@@ -981,11 +1011,11 @@ function printIntro(): void {
     return;
   }
 
-  // Always include the wordmark inside the clack intro line. When bash ran
-  // first (NANOCLAW_BOOTSTRAPPED=1) it already printed its own wordmark
-  // above us; the small repeat is worth it to keep the brand anchored at
-  // the visible top of the clack session once the bash output scrolls away.
-  p.intro(`${wordmark}  ${k.dim("Let's get you set up.")}`);
+  // bash already printed the wordmark above us; the clack intro carries the
+  // welcome framing alone so the two don't double up. Standalone runs of
+  // setup:auto still see this as the first line — fine without the wordmark
+  // since the line itself signals the start of the flow.
+  p.intro("Let's get you set up.");
 }
 
 /**

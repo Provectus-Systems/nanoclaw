@@ -86,15 +86,20 @@ function ensureShellProfilePath(): void {
   }
 }
 
-function writeEnvOnecliUrl(url: string): void {
+function writeEnvVar(name: string, value: string): void {
   const envFile = path.join(process.cwd(), '.env');
   let content = fs.existsSync(envFile) ? fs.readFileSync(envFile, 'utf-8') : '';
-  if (/^ONECLI_URL=/m.test(content)) {
-    content = content.replace(/^ONECLI_URL=.*$/m, `ONECLI_URL=${url}`);
+  const re = new RegExp(`^${name}=.*$`, 'm');
+  if (re.test(content)) {
+    content = content.replace(re, `${name}=${value}`);
   } else {
-    content = content.trimEnd() + (content ? '\n' : '') + `ONECLI_URL=${url}\n`;
+    content = content.trimEnd() + (content ? '\n' : '') + `${name}=${value}\n`;
   }
   fs.writeFileSync(envFile, content);
+}
+
+function writeEnvOnecliUrl(url: string): void {
+  writeEnvVar('ONECLI_URL', url);
 }
 
 // Last-known-good CLI release. Used only if BOTH the upstream installer
@@ -257,6 +262,8 @@ export async function run(args: string[]): Promise<void> {
   ensureShellProfilePath();
 
   if (remoteUrl) {
+    // Remote-mode: install only the CLI, point it at the remote gateway, and
+    // record the URL in .env. No local gateway is started.
     log.info('Installing OneCLI CLI for remote gateway', { remoteUrl });
     const res = installOnecliCliOnly();
     if (!res.ok || !onecliVersion()) {
@@ -279,6 +286,23 @@ export async function run(args: string[]): Promise<void> {
     }
     writeEnvOnecliUrl(remoteUrl);
     log.info('Wrote ONECLI_URL to .env', { url: remoteUrl });
+    const remoteToken = process.env.NANOCLAW_ONECLI_API_TOKEN?.trim();
+    if (remoteToken) {
+      // Two auth surfaces: `onecli auth login` persists the key for CLI
+      // calls during setup itself (e.g. detecting an existing Anthropic
+      // secret via `onecli secrets list`), and ONECLI_API_KEY in .env is
+      // read by the runtime SDK at request time. Both are needed.
+      try {
+        execFileSync('onecli', ['auth', 'login', '--api-key', remoteToken], {
+          stdio: 'ignore',
+          env: childEnv(),
+        });
+      } catch (err) {
+        log.warn('onecli auth login failed', { err });
+      }
+      writeEnvVar('ONECLI_API_KEY', remoteToken);
+      log.info('Wrote ONECLI_API_KEY to .env');
+    }
     const healthy = await pollHealth(remoteUrl, 5000);
     emitStatus('ONECLI', {
       INSTALLED: true,
