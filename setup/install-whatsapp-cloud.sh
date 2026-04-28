@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Setup helper: install-whatsapp-cloud — bundles the preflight + install
 # commands from the /add-whatsapp-cloud skill into one idempotent script so
-# /new-setup can run them programmatically before continuing to credentials.
+# /setup can run them programmatically before continuing to credentials.
 #
 # Copies the WhatsApp Cloud adapter in from the `channels` branch; appends the
 # self-registration import; installs the pinned @chat-adapter/whatsapp package;

@@ -1,8 +1,8 @@
 /**
- * Step: cli-agent — Create the scratch CLI agent for `/new-setup`.
+ * Step: cli-agent — Create the scratch CLI agent for `/setup`.
  *
  * Thin wrapper around `scripts/init-cli-agent.ts`. Emits a status block so
- * /new-setup SKILL.md can parse the result without having to read the
+ * /setup SKILL.md can parse the result without having to read the
  * script's plain stdout.
  *
  * Args:

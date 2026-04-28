@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Setup helper: install-linear — bundles the preflight + install commands
-# from the /add-linear skill into one idempotent script so /new-setup can
+# from the /add-linear skill into one idempotent script so /setup can
 # run them programmatically before continuing to credentials.
 #
 # Copies the Linear adapter in from the `channels` branch; appends the

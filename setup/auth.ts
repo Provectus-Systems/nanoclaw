@@ -7,7 +7,7 @@
  *                             already exists unless --force is passed.
  *
  * The actual user-facing prompt (subscription vs API key, paste the token)
- * stays in the /new-setup SKILL.md. This step is just the machine side:
+ * stays in the /setup SKILL.md. This step is just the machine side:
  * it calls `onecli secrets list` / `onecli secrets create` and emits a
  * structured status block. The token value is never logged.
  */
@@ -124,7 +124,7 @@ export async function run(args: string[]): Promise<void> {
     emitStatus('AUTH', {
       STATUS: 'failed',
       ERROR: 'onecli_list_failed',
-      HINT: 'Is OneCLI running? Run `/new-setup` from the onecli step.',
+      HINT: 'Is OneCLI running? Run `/setup` from the onecli step.',
       LOG: 'logs/setup.log',
     });
     process.exit(1);

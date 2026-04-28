@@ -1,5 +1,5 @@
 /**
- * Initialize the scratch CLI agent used during `/new-setup`.
+ * Initialize the scratch CLI agent used during `/setup`.
  *
  * Creates the synthetic `cli:local` user, grants owner role if no owner
  * exists yet, builds an agent group with a minimal CLAUDE.md, and wires it

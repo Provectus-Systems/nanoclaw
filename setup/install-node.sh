@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Setup helper: install-node — bundles Node 22 install into one idempotent
-# script so /new-setup can run it without needing `curl | sudo -E bash -` in
+# script so /setup can run it without needing `curl | sudo -E bash -` in
 # the allowlist (that pattern is inherently unmatchable — bash reads from
 # stdin, so pre-approval can't inspect what's being executed).
 #

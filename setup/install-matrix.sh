@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Setup helper: install-matrix — bundles the preflight + install commands
-# from the /add-matrix skill into one idempotent script so /new-setup can
+# from the /add-matrix skill into one idempotent script so /setup can
 # run them programmatically before continuing to credentials.
 #
 # Copies the Matrix adapter in from the `channels` branch; appends the

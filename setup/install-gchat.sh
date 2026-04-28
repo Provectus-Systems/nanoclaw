@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Setup helper: install-gchat — bundles the preflight + install commands
-# from the /add-gchat skill into one idempotent script so /new-setup can
+# from the /add-gchat skill into one idempotent script so /setup can
 # run them programmatically before continuing to credentials.
 #
 # Copies the Google Chat adapter in from the `channels` branch; appends the

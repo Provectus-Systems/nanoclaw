@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Setup helper: install-docker — bundles Docker install into one idempotent
-# script so /new-setup can run it without needing `curl | sh` in the allowlist
+# script so /setup can run it without needing `curl | sh` in the allowlist
 # (pipelines split at matching time, and `sh` receiving stdin can't be
 # pre-approved safely).
 #

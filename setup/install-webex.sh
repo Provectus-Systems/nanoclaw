@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Setup helper: install-webex — bundles the preflight + install commands
-# from the /add-webex skill into one idempotent script so /new-setup can
+# from the /add-webex skill into one idempotent script so /setup can
 # run them programmatically before continuing to credentials.
 #
 # Copies the Webex adapter in from the `channels` branch; appends the
