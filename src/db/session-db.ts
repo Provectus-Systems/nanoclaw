@@ -103,14 +103,16 @@ export function insertMessage(
   },
 ): void {
   const trigger = message.trigger ?? 1;
-  const result = db.prepare(
-    `INSERT OR IGNORE INTO messages_in (id, seq, kind, timestamp, status, platform_id, channel_type, thread_id, content, process_after, recurrence, series_id, trigger)
+  const result = db
+    .prepare(
+      `INSERT OR IGNORE INTO messages_in (id, seq, kind, timestamp, status, platform_id, channel_type, thread_id, content, process_after, recurrence, series_id, trigger)
      VALUES (@id, @seq, @kind, @timestamp, 'pending', @platformId, @channelType, @threadId, @content, @processAfter, @recurrence, @id, @trigger)`,
-  ).run({
-    ...message,
-    trigger,
-    seq: nextEvenSeq(db),
-  });
+    )
+    .run({
+      ...message,
+      trigger,
+      seq: nextEvenSeq(db),
+    });
   // If the row already existed and this write wants to wake the agent,
   // escalate: flip trigger 0→1 so the message isn't silently swallowed.
   if (result.changes === 0 && trigger === 1) {
